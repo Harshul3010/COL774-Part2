@@ -3,9 +3,8 @@ import csv
 import math
 import nltk
 from nltk.stem import PorterStemmer
-from nltk.tokenize import TreebankWordTokenizer
 from collections import defaultdict
-from copy import deepcopy
+import numpy as np
 
 class BernoulliNaiveBayes:
     def __init__(self):
@@ -13,12 +12,21 @@ class BernoulliNaiveBayes:
         self.feature_probs = defaultdict(lambda: defaultdict(float))
         self.vocabulary = set()
         self.stemmer = PorterStemmer()
-        self.tokenizer = TreebankWordTokenizer()
+        self.class_mapping = ['pants-fire', 'false', 'barely-true', 'half-true', 'mostly-true', 'true']
 
     def preprocess(self, text, stop_words):
-        text = text.lower()  # Convert to lowercase first
-        tokens = self.tokenizer.tokenize(text)
-        tokens = [self.stemmer.stem(token) for token in tokens if token.isalnum() and token not in stop_words]
+        text = text.lower()  # Convert to lowercase
+        tokens = text.split()  # Split on whitespace
+        print(f"Original lowercase tokens: {tokens}")
+        
+        # Remove stopwords
+        tokens = [token for token in tokens if token not in stop_words]
+        print(f"After stopword removal: {tokens}")
+        
+        # Apply stemming
+        tokens = [self.stemmer.stem(token) for token in tokens]
+        print(f"After stemming: {tokens}")
+        
         return set(tokens)
 
     def train(self, train_file, stop_words):
@@ -33,6 +41,7 @@ class BernoulliNaiveBayes:
                     continue
                 label, text = row[1], row[2]
                 features = self.preprocess(text, stop_words)
+                print(f"Features for document: {features}")
                 self.vocabulary.update(features)
                 
                 class_counts[label] += 1
@@ -87,6 +96,26 @@ class BernoulliNaiveBayes:
                 best_label = label
         
         return best_label
+
+    def evaluate_with_checker(self, checker_file, test_file):
+        checker_data = np.load(checker_file)
+        predictions = np.argmax(checker_data, axis=1)
+        predicted_labels = [self.class_mapping[pred] for pred in predictions]
+
+        true_labels = []
+        with open(test_file, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f, delimiter='\t')
+            for row in reader:
+                if len(row) < 3:  # Skip blank lines
+                    continue
+                true_labels.append(row[1])
+
+        correct = sum(1 for true, pred in zip(true_labels, predicted_labels) if true == pred)
+        accuracy = correct / len(true_labels)
+
+        print(f"Accuracy using checker file: {accuracy:.4f}")
+
+        return predicted_labels, accuracy
 
 def load_stopwords(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
