@@ -31,49 +31,57 @@ class MultinomialNaiveBayes:
         class_counts = defaultdict(int)
         feature_counts = defaultdict(lambda: defaultdict(int))
         total_docs = 0
-
-        with open(train_file, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f, delimiter='\t')
-            for row in reader:
-                if len(row) < 3:
-                    continue
-                label, text = row[1], row[2]
-                features = self.preprocess(text, stop_words)
-                self.vocabulary.update(features)
-
-                class_counts[label] += 1
-                total_docs += 1
-
-                for feature in features:
-                    feature_counts[label][feature] += 1
+        
+        # Read data using pandas to prevent row drops
+        df_train = pd.read_csv(train_file, sep="\t", header=None, quoting=3, encoding='utf-8')
+        
+        rows = len(df_train)
+        print(f"Total rows read: {rows}")
+        
+        for index, row in df_train.iterrows():
+            if len(row) < 3:  # Skip rows with less than 3 columns
+                continue
+            label, text = row[1], row[2]
+            features = self.preprocess(text, stop_words)
+            print(f"Features for document {index + 1}: {features}")
+            self.vocabulary.update(features)
+            
+            class_counts[label] += 1
+            total_docs += 1
+            
+            for feature in features:
+                feature_counts[label][feature] += 1
+        
 
         for label in class_counts:
             self.class_probs[label] = math.log(class_counts[label] / total_docs)
-            total_word_count = sum(feature_counts[label].values())
             for feature in self.vocabulary:
                 count = feature_counts[label][feature]
-                self.feature_probs[label][feature] = math.log((count + 1) / (total_word_count + len(self.vocabulary)))
+                total = class_counts[label]
+                self.feature_probs[label][feature] = math.log((count + 1) / (total + 2))
 
     def test(self, test_file, stop_words):
         correct = 0
         total = 0
         predictions = []
 
-        with open(test_file, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f, delimiter='\t')
-            for row in reader:
-                if len(row) < 3:
-                    continue
-                label, text = row[1], row[2]
-                features = self.preprocess(text, stop_words)
-                prediction = self.predict(features)
-                predictions.append(prediction)
+        # Read data using pandas to prevent row drops
+        df_test = pd.read_csv(test_file, sep="\t", header=None, quoting=3, encoding='utf-8')
+        
+        # Iterate over each row in the test data
+        for index, row in df_test.iterrows():
+            if len(row) < 3:  # Skip rows with less than 3 columns
+                continue
+            label, text = row[1], row[2]
+            features = self.preprocess(text, stop_words)
+            prediction = self.predict(features)
+            predictions.append(prediction)
+            
+            if prediction == label:
+                correct += 1
+            total += 1
 
-                if prediction == label:
-                    correct += 1
-                total += 1
-
-        accuracy = correct / total
+        accuracy = correct / total if total > 0 else 0  # Handle division by zero in case total is zero
         return predictions, accuracy
 
     def predict(self, features):
@@ -98,10 +106,10 @@ def load_stopwords(file_path):
 
 def main():
     parser = argparse.ArgumentParser(description='Multinomial Naive Bayes with Uni-grams and Bi-grams')
-    parser.add_argument('--train', required=True, help='Path to the training file')
-    parser.add_argument('--test', required=True, help='Path to the test file')
-    parser.add_argument('--out', required=True, help='Path to the output file')
-    parser.add_argument('--stop', required=True, help='Path to stopwords file')
+    parser.add_argument('--train', required=False, help='Path to the training file', default='train.tsv')
+    parser.add_argument('--test', required=False, help='Path to the test file', default='valid.tsv')
+    parser.add_argument('--out', required=False, help='Path to the output file', default='ouput_3b.txt')
+    parser.add_argument('--stop', required=False, help='Path to stopwords file', default='stopwords.txt')
     args = parser.parse_args()
 
     stop_words = load_stopwords(args.stop)
