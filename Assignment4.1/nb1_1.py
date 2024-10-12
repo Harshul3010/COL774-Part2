@@ -135,7 +135,7 @@ def main():
     parser = argparse.ArgumentParser(description='Bernoulli Naive Bayes for Fake News Detection')
     parser.add_argument('--train', required=False, help='Path to the training file', default='train.tsv')
     parser.add_argument('--test', required=False, help='Path to the test file', default='valid.tsv')
-    parser.add_argument('--out', required=False, help='Path to the output file', default='ouput_1.txt')
+    parser.add_argument('--out', required=False, help='Path to the output file', default='output_1.txt')
     parser.add_argument('--stop', required=False, help='Path to stopwords file', default='stopwords.txt')
     args = parser.parse_args()
 

@@ -6,6 +6,7 @@ from nltk.stem import PorterStemmer
 from collections import defaultdict
 from nltk.util import ngrams
 import numpy as np
+import pandas as pd
 
 class MultinomialNaiveBayes:
     def __init__(self):
@@ -20,10 +21,11 @@ class MultinomialNaiveBayes:
         tokens = text.split()
         tokens = [token for token in tokens if token not in stop_words]
         tokens = [self.stemmer.stem(token) for token in tokens]
-
-        uni_grams = tokens
-        bi_grams = list(ngrams(tokens, 2))
-        all_grams = uni_grams + bi_grams
+        
+        # Generate uni-grams and bi-grams
+        uni_grams = set(tokens)
+        bi_grams = set(ngrams(tokens, 2))
+        all_grams = uni_grams.union(bi_grams)
 
         return all_grams
 
@@ -54,11 +56,13 @@ class MultinomialNaiveBayes:
         
 
         for label in class_counts:
-            self.class_probs[label] = math.log(class_counts[label] / total_docs)
+            self.class_probs[label] = math.log(class_counts[label] / total_docs)  # Prior probability of the class
+            total_words_in_class = sum(feature_counts[label].values())  # Total words in this class
+
             for feature in self.vocabulary:
                 count = feature_counts[label][feature]
-                total = class_counts[label]
-                self.feature_probs[label][feature] = math.log((count + 1) / (total + 2))
+                # Apply Laplace smoothing with c=1 for Multinomial Naive Bayes
+                self.feature_probs[label][feature] = math.log((count + 1) / (total_words_in_class + len(self.vocabulary)))
 
     def test(self, test_file, stop_words):
         correct = 0
@@ -108,7 +112,7 @@ def main():
     parser = argparse.ArgumentParser(description='Multinomial Naive Bayes with Uni-grams and Bi-grams')
     parser.add_argument('--train', required=False, help='Path to the training file', default='train.tsv')
     parser.add_argument('--test', required=False, help='Path to the test file', default='valid.tsv')
-    parser.add_argument('--out', required=False, help='Path to the output file', default='ouput_3b.txt')
+    parser.add_argument('--out', required=False, help='Path to the output file', default='output_3b.txt')
     parser.add_argument('--stop', required=False, help='Path to stopwords file', default='stopwords.txt')
     args = parser.parse_args()
 

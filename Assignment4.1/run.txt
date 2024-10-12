@@ -1,0 +1,1 @@
+python check.py checker_files/multinomial_bigrams_probas_test.npy output_3b.txt
