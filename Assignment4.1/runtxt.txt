@@ -1,0 +1,1 @@
+python txtcheck.py checker_files/bernoulli_out.txt output_1.txt
