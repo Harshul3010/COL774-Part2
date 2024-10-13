@@ -14,36 +14,30 @@ class MultinomialNaiveBayes:
         self.vocabulary = set()
         self.stemmer = PorterStemmer()
         self.class_mapping = ['pants-fire', 'false', 'barely-true', 'half-true', 'mostly-true', 'true']
+        self.total_words_in_class = defaultdict(int)
 
     def preprocess(self, text, stop_words):
-        text = text.lower()  # Convert to lowercase
-        tokens = text.split()  # Split on whitespace
-
-        # Remove stopwords
+        text = text.lower()
+        tokens = text.split()
         tokens = [token for token in tokens if token not in stop_words]
-
-        # Apply stemming
         tokens = [self.stemmer.stem(token) for token in tokens]
-
-        return tokens  # Return list instead of set, because frequency matters
+        return tokens  # Return list, not set, because frequency matters in Multinomial NB
 
     def train(self, train_file, stop_words):
         class_counts = defaultdict(int)
         feature_counts = defaultdict(lambda: defaultdict(int))
         total_docs = 0
         
-        # Read data using pandas to prevent row drops
         df_train = pd.read_csv(train_file, sep="\t", header=None, quoting=3, encoding='utf-8')
         
         rows = len(df_train)
         print(f"Total rows read: {rows}")
         
         for index, row in df_train.iterrows():
-            if len(row) < 3:  # Skip rows with less than 3 columns
+            if len(row) < 3:
                 continue
             label, text = row[1], row[2]
             features = self.preprocess(text, stop_words)
-            print(f"Features for document {index + 1}: {features}")
             self.vocabulary.update(features)
             
             class_counts[label] += 1
@@ -51,16 +45,13 @@ class MultinomialNaiveBayes:
             
             for feature in features:
                 feature_counts[label][feature] += 1
+                self.total_words_in_class[label] += 1
 
-        # Calculate probabilities
         for label in class_counts:
-            self.class_probs[label] = math.log(class_counts[label] / total_docs)  # Prior probability of the class
-            total_words_in_class = sum(feature_counts[label].values())  # Total words in this class
-
+            self.class_probs[label] = math.log(class_counts[label] / total_docs)
             for feature in self.vocabulary:
                 count = feature_counts[label][feature]
-                # Apply Laplace smoothing with c=1 for Multinomial Naive Bayes
-                self.feature_probs[label][feature] = math.log((count + 1) / (total_words_in_class + len(self.vocabulary)))
+                self.feature_probs[label][feature] = math.log((count + 1) / (self.total_words_in_class[label] + len(self.vocabulary)))
         
         return rows
 
@@ -69,12 +60,10 @@ class MultinomialNaiveBayes:
         total = 0
         predictions = []
 
-        # Read data using pandas to prevent row drops
         df_test = pd.read_csv(test_file, sep="\t", header=None, quoting=3, encoding='utf-8')
         
-        # Iterate over each row in the test data
         for index, row in df_test.iterrows():
-            if len(row) < 3:  # Skip rows with less than 3 columns
+            if len(row) < 3:
                 continue
             label, text = row[1], row[2]
             features = self.preprocess(text, stop_words)
@@ -85,19 +74,23 @@ class MultinomialNaiveBayes:
                 correct += 1
             total += 1
 
-        accuracy = correct / total if total > 0 else 0  # Handle division by zero in case total is zero
-        return predictions, accuracy
-    
+        accuracy = correct / total if total > 0 else 0
+        return predictions, accuracy, correct, total
+
     def predict(self, features):
         best_label = None
         best_score = float('-inf')
 
         for label in self.class_probs:
             score = self.class_probs[label]
+            unseen_prob = math.log(1 / (self.total_words_in_class[label] + len(self.vocabulary)))
+            
             for feature in features:
                 if feature in self.vocabulary:
                     score += self.feature_probs[label][feature]
-
+                else:
+                    score += unseen_prob  # Apply Laplace smoothing for each unseen word
+            
             if score > best_score:
                 best_score = score
                 best_label = label
@@ -112,21 +105,23 @@ def main():
     parser = argparse.ArgumentParser(description='Multinomial Naive Bayes for Fake News Detection')
     parser.add_argument('--train', required=False, help='Path to the training file', default='train.tsv')
     parser.add_argument('--test', required=False, help='Path to the test file', default='valid.tsv')
-    parser.add_argument('--out', required=False, help='Path to the output file', default='ouput_2.txt')
+    parser.add_argument('--out', required=False, help='Path to the output file', default='output_2.txt')
     parser.add_argument('--stop', required=False, help='Path to stopwords file', default='stopwords.txt')
     args = parser.parse_args()
 
     stop_words = load_stopwords(args.stop)
 
     classifier = MultinomialNaiveBayes()
-    classifier.train(args.train, stop_words)
-    predictions, accuracy = classifier.test(args.test, stop_words)
+    rows = classifier.train(args.train, stop_words)
+    print(f'Rows discovered: {rows}')
+    predictions, accuracy, correct, total = classifier.test(args.test, stop_words)
 
     with open(args.out, 'w', encoding='utf-8') as f:
         for prediction in predictions:
             f.write(f"{prediction}\n")
 
     print(f"Accuracy: {accuracy:.4f}")
+    print(f"Correct predictions: {correct} out of {total}")
 
 if __name__ == "__main__":
     main()
