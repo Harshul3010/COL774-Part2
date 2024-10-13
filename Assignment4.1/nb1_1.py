@@ -11,6 +11,7 @@ class BernoulliNaiveBayes:
     def __init__(self):
         self.class_probs = defaultdict(float)
         self.feature_probs = defaultdict(lambda: defaultdict(float))
+        self.class_counts = defaultdict(int)
         self.vocabulary = set()
         self.stemmer = PorterStemmer()
         self.class_mapping = ['pants-fire', 'false', 'barely-true', 'half-true', 'mostly-true', 'true']
@@ -32,38 +33,35 @@ class BernoulliNaiveBayes:
 
 
     def train(self, train_file, stop_words):
-        class_counts = defaultdict(int)
         feature_counts = defaultdict(lambda: defaultdict(int))
         total_docs = 0
         
-        # Read data using pandas to prevent row drops
         df_train = pd.read_csv(train_file, sep="\t", header=None, quoting=3, encoding='utf-8')
         
         rows = len(df_train)
         print(f"Total rows read: {rows}")
         
         for index, row in df_train.iterrows():
-            if len(row) < 3:  # Skip rows with less than 3 columns
+            if len(row) < 3:
                 continue
             label, text = row[1], row[2]
             features = self.preprocess(text, stop_words)
-            print(f"Features for document {index + 1}: {features}")
             self.vocabulary.update(features)
             
-            class_counts[label] += 1
+            self.class_counts[label] += 1
             total_docs += 1
             
             for feature in features:
                 feature_counts[label][feature] += 1
 
-        for label in class_counts:
-            self.class_probs[label] = math.log(class_counts[label] / total_docs)
+        for label in self.class_counts:
+            self.class_probs[label] = math.log(self.class_counts[label] / total_docs)
             for feature in self.vocabulary:
                 count = feature_counts[label][feature]
-                total = class_counts[label]
-                self.feature_probs[label][feature] = math.log((count + 1) / (total + 2))
+                self.feature_probs[label][feature] = math.log((count + 1) / (self.class_counts[label] + 2))
         
         return rows
+
 
     def test(self, test_file, stop_words):
         correct = 0
@@ -101,31 +99,18 @@ class BernoulliNaiveBayes:
                 else:
                     score += math.log(1 - math.exp(self.feature_probs[label][feature]))
             
+            # Handle unseen words
+            unseen_words = features - self.vocabulary
+            if unseen_words:
+                unseen_prob = math.log(1 / (2 + self.class_counts[label]))
+                score +=  unseen_prob
+            
             if score > best_score:
                 best_score = score
                 best_label = label
         
         return best_label
 
-    def evaluate_with_checker(self, checker_file, test_file):
-        checker_data = np.load(checker_file)
-        predictions = np.argmax(checker_data, axis=1)
-        predicted_labels = [self.class_mapping[pred] for pred in predictions]
-
-        true_labels = []
-        with open(test_file, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f, delimiter='\t')
-            for row in reader:
-                if len(row) < 3:  # Skip blank lines
-                    continue
-                true_labels.append(row[1])
-
-        correct = sum(1 for true, pred in zip(true_labels, predicted_labels) if true == pred)
-        accuracy = correct / len(true_labels)
-
-        print(f"Accuracy using checker file: {accuracy:.4f}")
-
-        return predicted_labels, accuracy
 
 def load_stopwords(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
