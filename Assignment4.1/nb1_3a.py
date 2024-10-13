@@ -6,6 +6,7 @@ from nltk.stem import PorterStemmer
 from collections import defaultdict
 import numpy as np
 import pandas as pd
+import time
 
 class BernoulliNaiveBayes:
     def __init__(self):
@@ -112,10 +113,11 @@ def load_stopwords(file_path):
         return set(line.strip().lower() for line in f)
 
 def main():
+    s_t = time.time()
     parser = argparse.ArgumentParser(description='Bernoulli Naive Bayes for Fake News Detection')
     parser.add_argument('--train', required=False, help='Path to the training file', default='train.tsv')
     parser.add_argument('--test', required=False, help='Path to the test file', default='valid.tsv')
-    parser.add_argument('--out', required=False, help='Path to the output file', default='output_1.txt')
+    parser.add_argument('--out', required=False, help='Path to the output file', default='output_3a.txt')
     parser.add_argument('--stop', required=False, help='Path to stopwords file', default='stopwords.txt')
     args = parser.parse_args()
 
@@ -130,6 +132,8 @@ def main():
         for prediction in predictions:
             f.write(f"{prediction}\n")
 
+    e_t = time.time()
+    print(f'time taken: {e_t-s_t}')
     print(f"Accuracy: {accuracy:.4f}")
     print(f"Correct predictions: {correct} out of {total}")
 

@@ -1,1 +1,1 @@
-python check.py checker_files/bernoulli_probas_test.npy output_1.txt
+python check.py checker_files/multinomial_probas_test.npy output_2.txt
