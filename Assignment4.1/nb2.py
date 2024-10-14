@@ -35,7 +35,7 @@ class EnhancedMultinomialNaiveBayes:
         self.stemmer = PorterStemmer()
         self.class_mapping = ['pants-fire', 'false', 'barely-true', 'half-true', 'mostly-true', 'true']
         self.total_words_in_class = defaultdict(int)
-        self.categorical_features = ['subject', 'speaker', 'job_title', 'state', 'party', 'context']
+        self.categorical_features = ['subject', 'speaker', 'job_title', 'state', 'party']
         self.numerical_features = ['barely_true_counts', 'false_counts', 'half_true_counts', 'mostly_true_counts', 'pants_fire_counts']
         self.label_encoders = {feature: CustomLabelEncoder() for feature in self.categorical_features}
 
@@ -72,11 +72,12 @@ class EnhancedMultinomialNaiveBayes:
             self.label_encoders[feature].fit(df_train[df_train.columns[3 + self.categorical_features.index(feature)]].fillna('Unknown'))
         
         for index, row in df_train.iterrows():
-            label, text = row[1], row[2]
+            a = str(row[2]) + " " + str(row[13])
+            label, text = row[1], a
             features = self.preprocess(text, stop_words)
             
-            if index % 1000 == 0:
-                print(f"Processing row {index}, label: {label}, features: {features[:5]}...")
+            # if index % 1000 == 0:
+            #     print(f"Processing row {index}, label: {label}, features: {features[:5]}...")
             
             self.vocabulary.update(features)
             
@@ -89,8 +90,8 @@ class EnhancedMultinomialNaiveBayes:
 
             # Add encoded categorical features
             for i, feature in enumerate(self.categorical_features):
-                if i+2 < len(row):
-                    encoded_value = self.label_encoders[feature].transform([str(row[i+2])])[0]
+                if i+3 < len(row):
+                    encoded_value = self.label_encoders[feature].transform([str(row[i+3])])[0]
                     feature_value = f"{feature}_{encoded_value}"
                     feature_counts[label][feature_value] += 1
                     self.vocabulary.add(feature_value)
@@ -102,10 +103,10 @@ class EnhancedMultinomialNaiveBayes:
                     feature_counts[label][feature_value] += 1
                     self.vocabulary.add(feature_value)
 
-        print(f"Class counts: {dict(class_counts)}")
-        print(f"Total documents: {total_docs}")
-        print(f"Vocabulary size: {len(self.vocabulary)}")
-        print(f"Sample vocabulary items: {list(self.vocabulary)[:10]}")
+        # print(f"Class counts: {dict(class_counts)}")
+        # print(f"Total documents: {total_docs}")
+        # print(f"Vocabulary size: {len(self.vocabulary)}")
+        # print(f"Sample vocabulary items: {list(self.vocabulary)[:10]}")
 
         for label in class_counts:
             self.class_probs[label] = math.log(class_counts[label] / total_docs)
@@ -124,13 +125,14 @@ class EnhancedMultinomialNaiveBayes:
         df_test = pd.read_csv(test_file, sep="\t", header=None, quoting=3, encoding='utf-8')
         
         for index, row in df_test.iterrows():
-            label, text = row[1], row[2]
+            a = str(row[2]) + " " + str(row[13])
+            label, text = row[1], a
             features = self.preprocess(text, stop_words)
             
             # Add encoded categorical features
             for i, feature in enumerate(self.categorical_features):
-                if i+2 < len(row):
-                    encoded_value = self.label_encoders[feature].transform([str(row[i+2])])[0]
+                if i+3 < len(row):
+                    encoded_value = self.label_encoders[feature].transform([str(row[i+3])])[0]
                     features.append(f"{feature}_{encoded_value}")
 
             # Add numerical features directly
@@ -145,8 +147,8 @@ class EnhancedMultinomialNaiveBayes:
                 correct += 1
             total += 1
 
-            if total % 100 == 0:
-                print(f"Processed {total} test samples...")
+            # if total % 100 == 0:
+            #     print(f"Processed {total} test samples...")
 
         accuracy = correct / total if total > 0 else 0
         return predictions, accuracy, correct, total
