@@ -14,7 +14,15 @@ class CustomLabelEncoder:
         self.next_code = 0
 
     def fit(self, values):
-        unique_values = set(values)
+        unique_values = set()
+        for value in values:
+            if isinstance(value, str):
+                # Split comma-separated values
+                for sub_value in value.split(','):
+                    unique_values.add(sub_value.strip())
+            else:
+                unique_values.add(value)
+
         for value in unique_values:
             if value not in self.encoding:
                 self.encoding[value] = self.next_code
@@ -22,10 +30,18 @@ class CustomLabelEncoder:
                 self.next_code += 1
 
     def transform(self, values):
-        return [self.encoding.get(value, -1) for value in values]
+        transformed = []
+        for value in values:
+            if isinstance(value, str):
+                # Handle comma-separated values
+                encoded = [self.encoding.get(sub_value.strip(), -1) for sub_value in value.split(',')]
+                transformed.append(encoded)
+            else:
+                transformed.append([self.encoding.get(value, -1)])
+        return transformed
 
     def inverse_transform(self, codes):
-        return [self.decoding.get(code, None) for code in codes]
+        return [[self.decoding.get(code, None) for code in code_list] for code_list in codes]
 
 class EnhancedMultinomialNaiveBayes:
     def __init__(self):
@@ -72,12 +88,9 @@ class EnhancedMultinomialNaiveBayes:
             self.label_encoders[feature].fit(df_train[df_train.columns[3 + self.categorical_features.index(feature)]].fillna('Unknown'))
         
         for index, row in df_train.iterrows():
-            a = str(row[2]) + " " + str(row[13])
+            a = str(row[2]) + " " + str(row[13])+ " " + str(row[7])
             label, text = row[1], a
             features = self.preprocess(text, stop_words)
-            
-            # if index % 1000 == 0:
-            #     print(f"Processing row {index}, label: {label}, features: {features[:5]}...")
             
             self.vocabulary.update(features)
             
@@ -91,10 +104,11 @@ class EnhancedMultinomialNaiveBayes:
             # Add encoded categorical features
             for i, feature in enumerate(self.categorical_features):
                 if i+3 < len(row):
-                    encoded_value = self.label_encoders[feature].transform([str(row[i+3])])[0]
-                    feature_value = f"{feature}_{encoded_value}"
-                    feature_counts[label][feature_value] += 1
-                    self.vocabulary.add(feature_value)
+                    encoded_values = self.label_encoders[feature].transform([str(row[i+3])])[0]
+                    for encoded_value in encoded_values:
+                        feature_value = f"{feature}_{encoded_value}"
+                        feature_counts[label][feature_value] += 1
+                        self.vocabulary.add(feature_value)
 
             # Add numerical features directly
             for i, feature in enumerate(self.numerical_features):
@@ -102,11 +116,6 @@ class EnhancedMultinomialNaiveBayes:
                     feature_value = f"{feature}_{row[i+8]}"
                     feature_counts[label][feature_value] += 1
                     self.vocabulary.add(feature_value)
-
-        # print(f"Class counts: {dict(class_counts)}")
-        # print(f"Total documents: {total_docs}")
-        # print(f"Vocabulary size: {len(self.vocabulary)}")
-        # print(f"Sample vocabulary items: {list(self.vocabulary)[:10]}")
 
         for label in class_counts:
             self.class_probs[label] = math.log(class_counts[label] / total_docs)
@@ -125,15 +134,16 @@ class EnhancedMultinomialNaiveBayes:
         df_test = pd.read_csv(test_file, sep="\t", header=None, quoting=3, encoding='utf-8')
         
         for index, row in df_test.iterrows():
-            a = str(row[2]) + " " + str(row[13])
+            a = str(row[2]) + " " + str(row[13]) + " " + str(row[7])
             label, text = row[1], a
             features = self.preprocess(text, stop_words)
             
             # Add encoded categorical features
             for i, feature in enumerate(self.categorical_features):
                 if i+3 < len(row):
-                    encoded_value = self.label_encoders[feature].transform([str(row[i+3])])[0]
-                    features.append(f"{feature}_{encoded_value}")
+                    encoded_values = self.label_encoders[feature].transform([str(row[i+3])])[0]
+                    for encoded_value in encoded_values:
+                        features.append(f"{feature}_{encoded_value}")
 
             # Add numerical features directly
             for i, feature in enumerate(self.numerical_features):
@@ -146,9 +156,6 @@ class EnhancedMultinomialNaiveBayes:
             if prediction == label:
                 correct += 1
             total += 1
-
-            # if total % 100 == 0:
-            #     print(f"Processed {total} test samples...")
 
         accuracy = correct / total if total > 0 else 0
         return predictions, accuracy, correct, total
