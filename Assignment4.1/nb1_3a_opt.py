@@ -16,6 +16,7 @@ class BernoulliNaiveBayes:
         self.stemmer = PorterStemmer()
         self.vocabulary = {}
         self.feature_count = 0
+        self.class_counts = None  # Added to store class counts
 
     def preprocess(self, text, stop_words):
         text = text.lower()
@@ -62,6 +63,7 @@ class BernoulliNaiveBayes:
         # Compute class prior probabilities
         class_counts = np.bincount(y)
         self.class_log_prior_ = np.log(class_counts / class_counts.sum())
+        self.class_counts = class_counts  # Store class counts
 
         # Compute feature counts per class
         feature_counts = np.zeros((num_classes, num_features), dtype=np.int32)
@@ -75,11 +77,38 @@ class BernoulliNaiveBayes:
 
         return num_docs
 
-    def predict(self, X):
+    def predict(self, X_test_features_list):
+        num_docs = len(X_test_features_list)
+        num_features = self.feature_count
+
+        # Initialize document-term matrix and unseen feature flags
+        X = np.zeros((num_docs, num_features), dtype=np.int8)
+        has_unseen_features = np.zeros(num_docs, dtype=bool)
+
+        # Build document-term matrix and identify unseen features
+        for i, features in enumerate(X_test_features_list):
+            feature_set = set(features)
+            known_features = feature_set & self.vocabulary.keys()
+            unseen_features = feature_set - self.vocabulary.keys()
+
+            # Map known features to indices
+            indices = [self.vocabulary[feature] for feature in known_features]
+            X[i, indices] = 1
+
+            # Mark if there are unseen features
+            if unseen_features:
+                has_unseen_features[i] = True
+
         # Compute joint log likelihood
         jll = X @ self.feature_log_prob_.T
         jll += (1 - X) @ self.feature_log_prob_neg_.T
         jll += self.class_log_prior_
+
+        # Compute unseen feature penalty per class
+        unseen_prob = np.log(1 / (self.class_counts + 2))  # Shape: (num_classes,)
+
+        # Adjust joint log likelihood with unseen feature penalty
+        jll[has_unseen_features] += unseen_prob  # Broadcasting over classes
 
         # Predict class with highest joint log likelihood
         indices = np.argmax(jll, axis=1)
@@ -95,27 +124,20 @@ class BernoulliNaiveBayes:
 
         # Preprocess texts
         df_test['features'] = df_test[2].apply(lambda text: self.preprocess(text, stop_words))
-
-        # Build document-term matrix
-        num_docs = len(df_test)
-        num_features = self.feature_count
-        X_test = np.zeros((num_docs, num_features), dtype=np.int8)
-
-        for i, features in enumerate(df_test['features']):
-            indices = [self.vocabulary.get(feature) for feature in features if feature in self.vocabulary]
-            indices = [idx for idx in indices if idx is not None]
-            X_test[i, indices] = 1
+        test_features_list = df_test['features'].tolist()
 
         # Map labels to indices using the same mapping as in training
         class_to_index = {label: idx for idx, label in enumerate(self.classes_)}
         y_true = np.array([class_to_index.get(label, -1) for label in labels])
+
         # Remove samples with unknown labels
         valid_indices = y_true != -1
-        X_test = X_test[valid_indices]
         y_true = y_true[valid_indices]
+        test_features_list = [test_features_list[i] for i in range(len(test_features_list)) if valid_indices[i]]
+
         num_docs = len(y_true)
 
-        predictions = self.predict(X_test)
+        predictions = self.predict(test_features_list)
         y_pred = np.array([class_to_index.get(label, -1) for label in predictions])
 
         correct = np.sum(y_pred == y_true)
@@ -151,7 +173,7 @@ def main():
             f.write(f"{prediction}\n")
 
     e_t = time.time()
-    print(f'time taken: {e_t-s_t}')
+    print(f'Time taken: {e_t - s_t}')
     print(f"Accuracy: {accuracy:.4f}")
     print(f"Correct predictions: {correct} out of {total}")
 
