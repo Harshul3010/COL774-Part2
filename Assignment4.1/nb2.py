@@ -48,13 +48,12 @@ class EnhancedMultinomialNaiveBayes:
         tokens = [token for token in tokens if token not in stop_words]
         tokens = [self.stemmer.stem(token) for token in tokens]
 
-        # Generate unigrams, bigrams, trigrams, and 4-grams
         uni_grams = tokens
-        bi_grams = [' '.join(gram) for gram in ngrams(tokens, 2)]
-        tri_grams = [' '.join(gram) for gram in ngrams(tokens, 3)]
+        # bi_grams = [' '.join(gram) for gram in ngrams(tokens, 2)]
+        # tri_grams = [' '.join(gram) for gram in ngrams(tokens, 3)]
 
         # Combine all n-grams into one list
-        all_grams = uni_grams + bi_grams + tri_grams 
+        all_grams = uni_grams 
 
         return all_grams
 
