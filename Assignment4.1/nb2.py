@@ -5,6 +5,7 @@ from collections import defaultdict
 from nltk.stem import PorterStemmer
 from nltk.util import ngrams
 import pandas as pd
+import string
 
 class CustomLabelEncoder:
     def __init__(self):
@@ -40,13 +41,20 @@ class EnhancedMultinomialNaiveBayes:
 
     def preprocess(self, text, stop_words):
         text = str(text).lower()  # Convert to string in case of NaN
+        # Remove punctuation
+        text = text.translate(str.maketrans('', '', string.punctuation))
+        
         tokens = text.split()
         tokens = [token for token in tokens if token not in stop_words]
         tokens = [self.stemmer.stem(token) for token in tokens]
 
+        # Generate unigrams, bigrams, trigrams, and 4-grams
         uni_grams = tokens
-        bi_grams = list(ngrams(tokens, 2))
-        all_grams = uni_grams + [' '.join(gram) for gram in bi_grams]
+        bi_grams = [' '.join(gram) for gram in ngrams(tokens, 2)]
+        tri_grams = [' '.join(gram) for gram in ngrams(tokens, 3)]
+
+        # Combine all n-grams into one list
+        all_grams = uni_grams + bi_grams + tri_grams 
 
         return all_grams
 
@@ -82,16 +90,16 @@ class EnhancedMultinomialNaiveBayes:
 
             # Add encoded categorical features
             for i, feature in enumerate(self.categorical_features):
-                if i+3 < len(row):
-                    encoded_value = self.label_encoders[feature].transform([str(row[i+3])])[0]
+                if i+2 < len(row):
+                    encoded_value = self.label_encoders[feature].transform([str(row[i+2])])[0]
                     feature_value = f"{feature}_{encoded_value}"
                     feature_counts[label][feature_value] += 1
                     self.vocabulary.add(feature_value)
 
             # Add numerical features directly
             for i, feature in enumerate(self.numerical_features):
-                if i+9 < len(row):
-                    feature_value = f"{feature}_{row[i+9]}"
+                if i+8 < len(row):
+                    feature_value = f"{feature}_{row[i+8]}"
                     feature_counts[label][feature_value] += 1
                     self.vocabulary.add(feature_value)
 
@@ -122,14 +130,14 @@ class EnhancedMultinomialNaiveBayes:
             
             # Add encoded categorical features
             for i, feature in enumerate(self.categorical_features):
-                if i+3 < len(row):
-                    encoded_value = self.label_encoders[feature].transform([str(row[i+3])])[0]
+                if i+2 < len(row):
+                    encoded_value = self.label_encoders[feature].transform([str(row[i+2])])[0]
                     features.append(f"{feature}_{encoded_value}")
 
             # Add numerical features directly
             for i, feature in enumerate(self.numerical_features):
-                if i+9 < len(row):
-                    features.append(f"{feature}_{row[i+9]}")
+                if i+8 < len(row):
+                    features.append(f"{feature}_{row[i+8]}")
             
             prediction = self.predict(features)
             predictions.append(prediction)
