@@ -1,1 +1,5 @@
 python txtcheck.py checker_files/bernoulli_out.txt output_1.txt
+python txtcheck.py checker_files/multinomial_out.txt output_2.txt
+python txtcheck.py checker_files/bernoulli_bigrams_out.txt output_3a.txt
+python txtcheck.py checker_files/multinomial_bigrams_out.txt output_3b.txt
+python txtcheck.py output_test.txt output_p2.txt

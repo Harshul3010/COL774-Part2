@@ -23,10 +23,7 @@ class BernoulliNaiveBayes:
         tokens = text.split()
         tokens = [token for token in tokens if token not in stop_words]
         tokens = [self.stemmer.stem(token) for token in tokens]
-        unigrams = tokens
-        # bigrams = [' '.join([tokens[i], tokens[i+1]]) for i in range(len(tokens)-1)]
-        features = unigrams #+ bigrams
-        return set(features)
+        return set(tokens)
 
     def train(self, train_file, stop_words):
         df_train = pd.read_csv(train_file, sep="\t", header=None, quoting=3, encoding='utf-8')
@@ -108,7 +105,7 @@ class BernoulliNaiveBayes:
         unseen_prob = np.log(1 / (self.class_counts + 2))  # Shape: (num_classes,)
 
         # Adjust joint log likelihood with unseen feature penalty
-        jll[has_unseen_features] += unseen_prob  # Broadcasting over classes
+        jll[has_unseen_features] += unseen_prob 
 
         # Predict class with highest joint log likelihood
         indices = np.argmax(jll, axis=1)
@@ -117,36 +114,17 @@ class BernoulliNaiveBayes:
 
     def test(self, test_file, stop_words):
         df_test = pd.read_csv(test_file, sep="\t", header=None, quoting=3, encoding='utf-8')
-        df_test = df_test.dropna(subset=[1, 2])
-
-        labels = df_test[1].values
-        texts = df_test[2].values
+        df_test = df_test.dropna(subset=[2])
 
         # Preprocess texts
         df_test['features'] = df_test[2].apply(lambda text: self.preprocess(text, stop_words))
         test_features_list = df_test['features'].tolist()
 
-        # Map labels to indices using the same mapping as in training
-        class_to_index = {label: idx for idx, label in enumerate(self.classes_)}
-        y_true = np.array([class_to_index.get(label, -1) for label in labels])
-
-        # Remove samples with unknown labels
-        valid_indices = y_true != -1
-        y_true = y_true[valid_indices]
-        test_features_list = [test_features_list[i] for i in range(len(test_features_list)) if valid_indices[i]]
-
-        num_docs = len(y_true)
-
+        # Make predictions
         predictions = self.predict(test_features_list)
-        y_pred = np.array([class_to_index.get(label, -1) for label in predictions])
-
-        correct = np.sum(y_pred == y_true)
-        total = len(y_true)
-        accuracy = correct / total if total > 0 else 0
-
         predictions_labels = predictions
 
-        return predictions_labels, accuracy, correct, total
+        return predictions_labels
 
 def load_stopwords(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -166,7 +144,7 @@ def main():
     classifier = BernoulliNaiveBayes()
     rows = classifier.train(args.train, stop_words)
     print(f'Rows discovered: {rows}')
-    predictions, accuracy, correct, total = classifier.test(args.test, stop_words)
+    predictions = classifier.test(args.test, stop_words)
 
     with open(args.out, 'w', encoding='utf-8') as f:
         for prediction in predictions:
@@ -174,8 +152,6 @@ def main():
 
     e_t = time.time()
     print(f'Time taken: {e_t - s_t}')
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"Correct predictions: {correct} out of {total}")
 
 if __name__ == "__main__":
     main()
