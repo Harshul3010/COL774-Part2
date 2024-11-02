@@ -1,3 +1,4 @@
+# allowed imports sys, os, math, numpy, pandas, csv, json, sklearn, cvxpy
 import numpy as np
 import pandas as pd
 from logistic_regression import logistic_regression
@@ -33,19 +34,23 @@ class ObliqueDecisionTree:
 
     def _find_best_threshold(self, projections, y):
         print("Finding the best threshold...")
+
+        if np.any(np.isnan(projections)) or np.any(np.isinf(projections)):
+            raise Exception("Projections contain invalid values")
+
         sorted_indices = np.argsort(projections)
         sorted_projections = projections[sorted_indices]
         sorted_y = y[sorted_indices]
 
         best_threshold = None
-        best_gini = float('inf')
+        best_gini = np.inf
 
         for i in range(1, len(sorted_projections)):
             threshold = (sorted_projections[i - 1] + sorted_projections[i]) / 2
             left_mask = sorted_projections <= threshold
             right_mask = ~left_mask
-            
-            if np.sum(left_mask) < self.min_samples_split or np.sum(right_mask) < self.min_samples_split:
+
+            if np.sum(left_mask) < self.min_samples_split and np.sum(right_mask) < self.min_samples_split:
                 continue
             
             left_gini = self._gini_impurity(sorted_y[left_mask])
@@ -53,11 +58,11 @@ class ObliqueDecisionTree:
             n_left = np.sum(left_mask)
             n_right = np.sum(right_mask)
             gini = (n_left * left_gini + n_right * right_gini) / len(y)
-            
+
             if gini < best_gini:
                 best_gini = gini
                 best_threshold = threshold
-
+            
         print(f"Best threshold found: {best_threshold} with Gini impurity: {best_gini}")
         return best_threshold
 
@@ -86,16 +91,24 @@ class ObliqueDecisionTree:
         try:
             print("Running logistic regression to find weights...")
             node.weights = logistic_regression(X, y)
+
+            if np.any(np.isnan(node.weights)) or np.any(np.isinf(node.weights)):
+                raise Exception("Logistic regression produced invalid weights")
+
             projections = X @ node.weights
+
+            if np.any(np.isnan(projections)) or np.any(np.isinf(projections)):
+                raise Exception("Projections contain invalid values")
+
             node.threshold = self._find_best_threshold(projections, y)
             
-            if node.threshold is None:
+            if node.threshold is None or np.isnan(node.threshold) or np.isinf(node.threshold):
                 raise Exception("No valid threshold found")
             
             left_mask = projections <= node.threshold
             right_mask = ~left_mask
             
-            if np.sum(left_mask) < self.min_samples_split or np.sum(right_mask) < self.min_samples_split:
+            if np.sum(left_mask) < self.min_samples_split and np.sum(right_mask) < self.min_samples_split:
                 raise Exception("Insufficient samples in split")
 
             node.left = self._build_tree(X[left_mask], y[left_mask], depth + 1, 2 * node_id)
@@ -195,7 +208,7 @@ class ObliqueDecisionTree:
 
 def process_data(filename):
     print(f"Loading data from {filename}...")
-    data = pd.read_csv(filename) #Write header = None for a and b part
+    data = pd.read_csv(filename, header=None) #Write header = None for a and b part
     X = data.iloc[:, :-1].values
     y = data.iloc[:, -1].values.astype(int)
     print("Data loaded successfully.")
