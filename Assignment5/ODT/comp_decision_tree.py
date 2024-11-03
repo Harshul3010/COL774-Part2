@@ -1,7 +1,7 @@
 # allowed imports sys, os, math, numpy, pandas, csv, json, sklearn, cvxpy
 import numpy as np
 import pandas as pd
-from logistic_regression import logistic_regression
+from sklearn.linear_model import LogisticRegression
 import sys
 
 class Node:
@@ -17,9 +17,10 @@ class Node:
         self.feature_count = None
 
 class ObliqueDecisionTree:
-    def __init__(self, max_depth, min_samples_split=2):
+    def __init__(self, max_depth, min_samples_split=2, regularization=0.1):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
+        self.regularization = regularization
         self.tree = None
         self.node_count = 0
         self.feature_count = None
@@ -31,6 +32,7 @@ class ObliqueDecisionTree:
         probabilities = counts / len(y)
         gini = 1 - np.sum(probabilities ** 2)
         return gini
+
 
     def _find_best_threshold(self, projections, y):
         print("Finding the best threshold...")
@@ -90,7 +92,9 @@ class ObliqueDecisionTree:
 
         try:
             print("Running logistic regression to find weights...")
-            node.weights = logistic_regression(X, y)
+            model = LogisticRegression(C=1/self.regularization, penalty='l2', solver='liblinear', fit_intercept=False)
+            model.fit(X, y)
+            node.weights = model.coef_.flatten()
 
             if np.any(np.isnan(node.weights)) or np.any(np.isinf(node.weights)):
                 raise Exception("Logistic regression produced invalid weights")
@@ -191,7 +195,8 @@ class ObliqueDecisionTree:
                 pruned_accuracy = validate_node_accuracy(node, X, y)
                 print(f"Pruned accuracy at node {node.node_id} if set as leaf: {pruned_accuracy:.4f}")
 
-                if pruned_accuracy >= original_accuracy:
+                # Pruning decision based on a threshold
+                if pruned_accuracy >= original_accuracy * 0.9:  # Allow some drop in accuracy
                     print(f"Node {node.node_id} pruned to leaf with prediction {leaf_prediction}")
                     return node
 
@@ -215,77 +220,24 @@ def process_data(filename):
     return X, y
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Please provide command and required arguments")
+    if len(sys.argv) != 7:
+        print("Usage: python comp_decision_tree.py test train.csv val.csv test.csv prediction.csv weight.csv")
         sys.exit(1)
-
-    command = sys.argv[1]
+        
+    train_file = sys.argv[2]
+    val_file = sys.argv[3]
+    test_file = sys.argv[4]
+    pred_file = sys.argv[5]
+    weight_file = sys.argv[6]
     
-    if command == "train":
-        if len(sys.argv) < 3:
-            print("Please specify unpruned or pruned mode")
-            sys.exit(1)
-            
-        mode = sys.argv[2]
-        
-        if mode == "unpruned":
-            if len(sys.argv) != 6:
-                print("Usage: python decision_tree.py train unpruned train.csv max_depth weight.csv")
-                sys.exit(1)
-                
-            train_file = sys.argv[3]
-            max_depth = int(sys.argv[4])
-            weight_file = sys.argv[5]
-            
-            X_train, y_train = process_data(train_file)
-            tree = ObliqueDecisionTree(max_depth=max_depth, min_samples_split=2)
-            tree.fit(X_train, y_train)
-            tree.save_weights(weight_file)
+    X_train, y_train = process_data(train_file)
+    X_val, y_val = process_data(val_file)
+    X_test, _ = process_data(test_file)
 
-        elif mode == "pruned":
-            if len(sys.argv) != 7:
-                print("Usage: python decision_tree.py train pruned train.csv val.csv max_depth weight.csv")
-                sys.exit(1)
-                
-            train_file = sys.argv[3]
-            val_file = sys.argv[4]
-            max_depth = int(sys.argv[5])
-            weight_file = sys.argv[6]
-            
-            X_train, y_train = process_data(train_file)
-            X_val, y_val = process_data(val_file)
-            
-            tree = ObliqueDecisionTree(max_depth=max_depth)
-            tree.fit(X_train, y_train)
-            tree.prune(X_val, y_val)
-            tree.save_weights(weight_file)
-            
-        else:
-            print("Invalid mode. Use 'unpruned' or 'pruned'")
-            sys.exit(1)
-            
-    elif command == "test":
-        if len(sys.argv) != 7:
-            print("Usage: python decision_tree.py test train.csv val.csv test.csv max_depth prediction.csv")
-            sys.exit(1)
-            
-        train_file = sys.argv[2]
-        val_file = sys.argv[3]
-        test_file = sys.argv[4]
-        max_depth = int(sys.argv[5])
-        pred_file = sys.argv[6]
-        
-        X_train, y_train = process_data(train_file)
-        X_val, y_val = process_data(val_file)
-        test_data = pd.read_csv(test_file)
-        X_test = test_data.iloc[:, :-1].values
-        
-        tree = ObliqueDecisionTree(max_depth=max_depth)
-        tree.fit(X_train, y_train)
-        tree.save_weights("weights_real_unpruned.csv")
-        tree.prune(X_val, y_val)
-        tree.save_weights("weights_real_pruned.csv")
-        
-        predictions = tree.predict(X_test)
-        pd.DataFrame(predictions).to_csv(pred_file, header=False, index=False)
-        print("Predictions saved successfully.")
+    tree = ObliqueDecisionTree(max_depth=10, min_samples_split=2, regularization=0.01)
+    tree.fit(X_train, y_train)
+    tree.prune(X_val, y_val)
+    tree.save_weights(weight_file)
+
+    predictions = tree.predict(X_test)
+    pd.DataFrame(predictions).to_csv(pred_file, header=False, index=False)
