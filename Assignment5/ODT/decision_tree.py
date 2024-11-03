@@ -208,7 +208,7 @@ class ObliqueDecisionTree:
 
 def process_data(filename):
     print(f"Loading data from {filename}...")
-    data = pd.read_csv(filename, header=None) #Write header = None for a and b part
+    data = pd.read_csv(filename) #Write header = None for a and b part
     X = data.iloc[:, :-1].values
     y = data.iloc[:, -1].values.astype(int)
     print("Data loaded successfully.")
