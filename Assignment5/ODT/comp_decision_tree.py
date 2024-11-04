@@ -17,10 +17,10 @@ class Node:
         self.feature_count = None
 
 class ObliqueDecisionTree:
-    def __init__(self, max_depth, min_samples_split=2, regularization=0.1):
+    def __init__(self, max_depth, min_samples_split=2, regularization = 0.01):
         self.max_depth = max_depth
-        self.min_samples_split = min_samples_split
         self.regularization = regularization
+        self.min_samples_split = min_samples_split
         self.tree = None
         self.node_count = 0
         self.feature_count = None
@@ -32,7 +32,6 @@ class ObliqueDecisionTree:
         probabilities = counts / len(y)
         gini = 1 - np.sum(probabilities ** 2)
         return gini
-
 
     def _find_best_threshold(self, projections, y):
         print("Finding the best threshold...")
@@ -86,7 +85,11 @@ class ObliqueDecisionTree:
 
         if not self._should_split(y, depth):
             node.leaf = True
-            node.prediction = np.argmax(np.bincount(y))
+            counts = np.bincount(y, minlength=2)
+            if counts[0] >= counts[1]:
+                node.prediction = 0
+            else:
+                node.prediction = 1
             print(f"Creating leaf node with prediction: {node.prediction}")
             return node
 
@@ -121,8 +124,12 @@ class ObliqueDecisionTree:
         except Exception as e:
             print(f"Exception encountered: {e}. Creating a leaf node with prediction.")
             node.leaf = True
-            node.prediction = np.argmax(np.bincount(y))
-        
+            counts = np.bincount(y, minlength=2)
+            if counts[0] >= counts[1]:
+                node.prediction = 0
+            else:
+                node.prediction = 1
+
         return node
 
     def fit(self, X, y):
@@ -165,7 +172,7 @@ class ObliqueDecisionTree:
 
     def prune(self, X_val, y_val):
         def validate_node_accuracy(node, X, y):
-            if y.size == 0: 
+            if y.size == 0:
                 return 0
             predictions = [self._predict_single(x, node) for x in X]
             return np.mean(np.array(predictions) == y)
@@ -182,21 +189,15 @@ class ObliqueDecisionTree:
             node.right = prune_subtree(node.right, X[right_mask], y[right_mask])
 
             if node.left and node.left.leaf and node.right and node.right.leaf:
-                if y.size == 0: 
-                    print(f"Skipping pruning at node {node.node_id} due to empty labels.")
-                    return node
-
                 original_accuracy = validate_node_accuracy(node, X, y)
-                print(f"Original accuracy at node {node.node_id}: {original_accuracy:.4f}")
+                counts = np.bincount(y, minlength=2)
+                leaf_prediction = np.argmax(counts)
 
-                leaf_prediction = np.argmax(np.bincount(y)) 
                 node.leaf = True
                 node.prediction = leaf_prediction
                 pruned_accuracy = validate_node_accuracy(node, X, y)
-                print(f"Pruned accuracy at node {node.node_id} if set as leaf: {pruned_accuracy:.4f}")
 
-                # Pruning decision based on a threshold
-                if pruned_accuracy >= original_accuracy * 0.9:  # Allow some drop in accuracy
+                if pruned_accuracy >= original_accuracy:
                     print(f"Node {node.node_id} pruned to leaf with prediction {leaf_prediction}")
                     return node
 
@@ -205,11 +206,11 @@ class ObliqueDecisionTree:
                 print(f"Node {node.node_id} restored to internal node")
 
             return node
-
+        
         print("Starting bottom-up pruning...")
         self.tree = prune_subtree(self.tree, X_val, y_val)
         print("Pruning completed.")
-        return self
+        return self        
 
 def process_data(filename):
     print(f"Loading data from {filename}...")
@@ -234,7 +235,7 @@ if __name__ == "__main__":
     X_val, y_val = process_data(val_file)
     X_test, _ = process_data(test_file)
 
-    tree = ObliqueDecisionTree(max_depth=10, min_samples_split=2, regularization=0.01)
+    tree = ObliqueDecisionTree(max_depth=10, min_samples_split=1, regularization=0.01)
     tree.fit(X_train, y_train)
     tree.prune(X_val, y_val)
     tree.save_weights(weight_file)
