@@ -84,7 +84,11 @@ class ObliqueDecisionTree:
 
         if not self._should_split(y, depth):
             node.leaf = True
-            node.prediction = np.argmax(np.bincount(y))
+            counts = np.bincount(y, minlength=2)
+            if counts[0] >= counts[1]:
+                node.prediction = 0
+            else:
+                node.prediction = 1
             print(f"Creating leaf node with prediction: {node.prediction}")
             return node
 
@@ -117,8 +121,12 @@ class ObliqueDecisionTree:
         except Exception as e:
             print(f"Exception encountered: {e}. Creating a leaf node with prediction.")
             node.leaf = True
-            node.prediction = np.argmax(np.bincount(y))
-        
+            counts = np.bincount(y, minlength=2)
+            if counts[0] >= counts[1]:
+                node.prediction = 0
+            else:
+                node.prediction = 1
+
         return node
 
     def fit(self, X, y):
@@ -178,14 +186,21 @@ class ObliqueDecisionTree:
             node.right = prune_subtree(node.right, X[right_mask], y[right_mask])
 
             if node.left and node.left.leaf and node.right and node.right.leaf:
-                if y.size == 0: 
-                    print(f"Skipping pruning at node {node.node_id} due to empty labels.")
+                if y.size == 0:
+                    print(f"Validation set is empty at node {node.node_id}, pruning and assigning class 0.")
+                    node.leaf = True
+                    node.prediction = 0
                     return node
 
                 original_accuracy = validate_node_accuracy(node, X, y)
                 print(f"Original accuracy at node {node.node_id}: {original_accuracy:.4f}")
 
-                leaf_prediction = np.argmax(np.bincount(y)) 
+                counts = np.bincount(y, minlength=2)
+                if counts[0] >= counts[1]:
+                    leaf_prediction = 0
+                else:
+                    leaf_prediction = 1
+
                 node.leaf = True
                 node.prediction = leaf_prediction
                 pruned_accuracy = validate_node_accuracy(node, X, y)
@@ -238,7 +253,7 @@ if __name__ == "__main__":
             weight_file = sys.argv[5]
             
             X_train, y_train = process_data(train_file)
-            tree = ObliqueDecisionTree(max_depth=max_depth, min_samples_split=2)
+            tree = ObliqueDecisionTree(max_depth=max_depth, min_samples_split=1)
             tree.fit(X_train, y_train)
             tree.save_weights(weight_file)
 
@@ -255,7 +270,7 @@ if __name__ == "__main__":
             X_train, y_train = process_data(train_file)
             X_val, y_val = process_data(val_file)
             
-            tree = ObliqueDecisionTree(max_depth=max_depth)
+            tree = ObliqueDecisionTree(max_depth=max_depth, min_samples_split=1)
             tree.fit(X_train, y_train)
             tree.prune(X_val, y_val)
             tree.save_weights(weight_file)
@@ -280,12 +295,22 @@ if __name__ == "__main__":
         test_data = pd.read_csv(test_file)
         X_test = test_data.iloc[:, :-1].values
         
-        tree = ObliqueDecisionTree(max_depth=max_depth)
+        tree = ObliqueDecisionTree(max_depth=max_depth, min_samples_split=1)
         tree.fit(X_train, y_train)
         tree.save_weights("weights_real_unpruned.csv")
+
+        # predictions_unpruned = tree.predict(X_test)
+        # pd.DataFrame(predictions_unpruned).to_csv('predictions_real_unpruned.csv', header=False, index=False)
+
+        # train_predictions_unpruned = tree.predict(X_train)
+        # pd.DataFrame(train_predictions_unpruned).to_csv('predictions_real_unpruned_train.csv', header=False, index=False)
+
         tree.prune(X_val, y_val)
         tree.save_weights("weights_real_pruned.csv")
         
         predictions = tree.predict(X_test)
         pd.DataFrame(predictions).to_csv(pred_file, header=False, index=False)
+
+        # train_predictions_pruned = tree.predict(X_train)
+        # pd.DataFrame(train_predictions_pruned).to_csv('predictions_real_pruned_train.csv', header=False, index=False)
         print("Predictions saved successfully.")
