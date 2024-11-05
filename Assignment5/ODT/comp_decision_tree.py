@@ -235,7 +235,7 @@ if __name__ == "__main__":
     X_val, y_val = process_data(val_file)
     X_test, _ = process_data(test_file)
 
-    tree = ObliqueDecisionTree(max_depth=10, min_samples_split=1, regularization=0.01)
+    tree = ObliqueDecisionTree(max_depth=10, min_samples_split=15, regularization=0.01)
     tree.fit(X_train, y_train)
     tree.prune(X_val, y_val)
     tree.save_weights(weight_file)
